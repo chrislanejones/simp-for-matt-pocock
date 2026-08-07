@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1 · What Crosses the Line</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<header class="masthead">
+  <p class="eyebrow">
+    <span>Engine in Worker</span><span class="sep">·</span><span>Lesson 01</span>
+    <span class="sep">·</span><span>~8 minutes</span>
+  </p>
+  <h1>What Crosses the Line</h1>
+  <p class="standfirst">Three ways data moves between threads, one way it refuses to — and
+  why that one is the whole story for Image&nbsp;Horse.</p>
+</header>
+
+<p class="lead">You already run a worker. <code>codec.worker.ts</code> works, and it works
+because the things it sends across are small or already shaped like buffers. The engine is
+a different animal: its value is a <em>view straight into WASM linear memory</em>, blitted
+to canvas without a copy. This lesson is about what happens to that view at the thread
+boundary.</p>
+
+<p>One tangible win by the end: you will be able to look at any payload in
+<code>useEngineCore.ts</code> and say instantly whether it copies, moves, shares, or throws
+— and roughly what it costs.</p>
+
+<h2>The three doors</h2>
+
+<p>There are exactly three ways a value gets from one thread to another, and
+<code>postMessage</code> picks between them based on what you hand it.</p>
+
+<div class="tablewrap">
+<table>
+  <caption>How each door behaves. Cost is on the <em>sending</em> thread.</caption>
+  <thead>
+    <tr><th>Door</th><th>Mechanism</th><th>Cost</th><th>Sender keeps it?</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="verdict">Copy</td>
+      <td>Structured clone</td>
+      <td class="num">∝ payload size</td>
+      <td>Yes — two independent values</td>
+    </tr>
+    <tr>
+      <td class="verdict">Move</td>
+      <td>Transfer list, 2nd arg</td>
+      <td class="num"><strong>O(1)</strong> — size-independent</td>
+      <td>No — original is detached, throws on read</td>
+    </tr>
+    <tr>
+      <td class="verdict">Share</td>
+      <td><code>SharedArrayBuffer</code></td>
+      <td class="num">O(1), once</td>
+      <td>Yes — <em>same bytes</em>, both threads</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Copy is the default and it is not free. Surma benchmarked structured clone across five
+device/browser combinations and found transfer time correlates tightly with the length of
+the object's <code>JSON.stringify()</code> output
+(<a href="https://surma.dev/things/is-postmessage-slow/">Surma, <em>Is postMessage
+slow?</em></a>). Two numbers came out of it, and they are the numbers to hold:</p>
+
+<div class="tablewrap">
+<table>
+  <caption>Structured-clone budgets, derived from the RAIL guidelines. Safe even on slow devices.</caption>
+  <thead>
+    <tr><th>If you are…</th><th>Budget</th><th>Max payload</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Responding to a user interaction</td><td class="num">100&nbsp;ms</td><td class="num"><strong>100&nbsp;KiB</strong></td></tr>
+    <tr><td>Driving a JS animation frame</td><td class="num">16&nbsp;ms</td><td class="num"><strong>10&nbsp;KiB</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Now put an Image Horse frame against that. A single 1920×1080 RGBA surface is
+<code>1920 × 1080 × 4</code> bytes:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Payload</th><th>Bytes</th><th>vs 10 KiB frame budget</th></tr></thead>
+  <tbody>
+    <tr><td>1920×1080 RGBA frame</td><td class="num">8,294,400 (7.9 MiB)</td><td class="num"><strong>810× over</strong></td></tr>
+    <tr><td>4096×4096 RGBA layer</td><td class="num">67,108,864 (64 MiB)</td><td class="num"><strong>6,554× over</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>So copying pixels per stroke is off the table before we start. Which points straight at
+door two — move it, <code>O(1)</code>, done. And that is exactly where Image Horse hits a
+wall.</p>
+
+<h2>The wall</h2>
+
+<p>Transfer works by <em>detaching</em> the buffer: the memory is unhooked from the sending
+realm and rehooked in the receiving one. That is why it is size-independent — nothing is
+copied, ownership just moves.</p>
+
+<p>WebAssembly linear memory cannot be detached. When the engine creates a
+<code>WebAssembly.Memory</code>, the spec sets an internal
+<code>[[ArrayBufferDetachKey]]</code> of <code>"WebAssembly.Memory"</code> on the resulting
+buffer, and <code>postMessage</code> does not pass that key — so the detach fails
+(<a href="https://github.com/whatwg/html/issues/4601">whatwg/html&nbsp;#4601</a>). The
+engine's heap is not a buffer you may move; it is the running program's memory.</p>
+
+<div class="callout">
+  <span class="label">The part that will bite you in review, not in dev</span>
+  <p>The browsers disagree about the failure. Firefox and Safari throw a
+  <code>TypeError</code>. Chrome has, since 2014, <strong>silently copied instead</strong> —
+  behaviour that predates WebAssembly and survived because sites depend on it. The spec was
+  amended to throw; Chrome kept shipping the copy.</p>
+  <p style="margin-bottom:0">So the naive port <em>appears to work</em> in Chrome, at full
+  copy cost, and hard-fails the moment anyone opens Safari.</p>
+</div>
+
+<p>There is a second, quieter trap on the same path. Typed arrays are <strong>serializable
+but not transferable</strong> — only the underlying <code>ArrayBuffer</code> is
+(<a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Transferable_objects">MDN,
+<em>Transferable objects</em></a>). Your flush path deals in
+<code>Uint8ClampedArray</code>. Putting one in the transfer list is an error; you have to
+reach through to <code>.buffer</code>, which — for a WASM view — lands you right back at
+the wall above.</p>
+
+<h2>The third door</h2>
+
+<p>Sharing sidesteps detachment entirely. A <code>SharedArrayBuffer</code> is
+<em>cloned</em>, not transferred — both threads end up with their own handle onto
+<em>the same underlying bytes</em>
+(<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer">MDN,
+<em>SharedArrayBuffer</em></a>). And critically for us,
+<code>new WebAssembly.Memory({ shared: true })</code> produces a memory whose backing buffer
+<em>is</em> a <code>SharedArrayBuffer</code>, which means the engine heap itself can be
+visible from both threads.</p>
+
+<p>That is the door Image Horse most likely walks through. It is not free either:</p>
+
+<div class="tablewrap">
+<table>
+  <caption>What the shared-memory door costs.</caption>
+  <thead><tr><th>Requirement</th><th>Consequence for Image Horse</th></tr></thead>
+  <tbody>
+    <tr><td>Secure context</td><td>Already satisfied — HTTPS on Netlify</td></tr>
+    <tr><td>Cross-origin isolated (<code>COOP</code> + <code>COEP</code>)</td><td>Netlify header work; may break third-party embeds, fonts, images</td></tr>
+    <tr><td>Synchronisation via <code>Atomics</code></td><td>Real concurrency bugs become possible for the first time</td></tr>
+    <tr><td>Android WebView: <strong>no support</strong></td><td>Hard blocker if the PWA must run there</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Baseline-wise it is safe — widely available since December 2021 — with that WebView
+exception. Hold the question of whether Android WebView matters; it decides an architecture
+for you, and it is in <a href="../NOTES.md">NOTES.md</a> as an open question.</p>
+
+<h2>Retrieval practice</h2>
+
+<p>Five payloads, all shaped like things in your codebase. For each: what does
+<code>postMessage</code> actually do? Answer from memory — scrolling up first will feel
+better and teach you less.</p>
+
+<div class="quiz" data-options="Copied|Passed|Shared|Thrown">
+  <p class="quiz-scale"><strong>Copied</strong> = structured clone · <strong>Passed</strong>
+  = ownership transferred, O(1) · <strong>Shared</strong> = same bytes, both threads ·
+  <strong>Thrown</strong> = TypeError per spec</p>
+
+  <ol style="list-style:none;padding:0;margin:0">
+    <li class="q"
+        data-answer="Copied"
+        data-why="Structured clone, and completely fine. This is a few dozen bytes — four orders of magnitude under the 100 KiB interaction budget. Not everything needs to be clever.">
+      <div class="stem">
+        <p>A pointer event forwarded to the engine worker:</p>
+<pre><code>worker.postMessage({ tool: "stamp", x: 412, y: 260, pressure: 0.8 })</code></pre>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Passed"
+        data-why="A JS-allocated ArrayBuffer is the textbook transferable. Note the reach-through to .buffer — passing png itself in the transfer list would be an error, since typed arrays are serializable but not transferable. After this line png.byteLength is 0.">
+      <div class="stem">
+        <p>An encoded PNG the codec worker produced, handed onward:</p>
+<pre><code><span class="c">// png is a Uint8Array over a normal JS ArrayBuffer</span>
+worker.postMessage(png, [png.buffer])</code></pre>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Thrown"
+        data-why="This is the wall. The view points into stamp_tool's linear memory, whose buffer carries [[ArrayBufferDetachKey]] = &quot;WebAssembly.Memory&quot; and cannot be detached. Firefox and Safari throw a TypeError. Chrome silently copies all 7.9 MiB instead — which is why this bug ships.">
+      <div class="stem">
+        <p>The flush path's zero-copy view, sent the obvious way:</p>
+<pre><code><span class="c">// rgba is a Uint8ClampedArray over stamp_tool's WASM heap</span>
+worker.postMessage(rgba, [rgba.buffer])</code></pre>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Copied"
+        data-why="Legal, and ruinous. Nothing throws — structured clone handles typed arrays happily. It just duplicates 64 MiB, blocking the sender during serialize and the receiver during deserialize. 'It works' and 'it is viable' are different claims.">
+      <div class="stem">
+        <p>A full 4096×4096 RGBA layer, no transfer list at all:</p>
+<pre><code>worker.postMessage({ layerId: 3, pixels: rgbaCopy })</code></pre>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Shared"
+        data-why="With shared: true the backing buffer is a SharedArrayBuffer, so both threads read and write the same bytes — no copy, no detach, no ownership handoff. Requires cross-origin isolation, and now you own the synchronisation problem.">
+      <div class="stem">
+        <p>A shared-memory engine heap, on a cross-origin-isolated page:</p>
+<pre><code>const mem = new WebAssembly.Memory({ initial: 256, <span class="k">shared: true</span> })
+worker.postMessage(mem)</code></pre>
+      </div>
+    </li>
+  </ol>
+
+  <div class="score"></div>
+</div>
+
+<h2>Verify it yourself</h2>
+
+<p>Do not take question 3 on my word — the Chrome-copies claim comes from a 2019 spec
+thread and browsers move. Paste this into the console on any page, in each browser you
+support:</p>
+
+<pre><code>const m = new WebAssembly.Memory({ initial: 1 });
+try {
+  <span class="c">// structuredClone uses the same transfer machinery as postMessage</span>
+  structuredClone(m.buffer, { transfer: [m.buffer] });
+  console.log("copied silently — byteLength still", m.buffer.byteLength);
+} catch (e) {
+  console.log("threw:", e.constructor.name, e.message);
+}</code></pre>
+
+<p>Bring me what each browser said. If Chrome has since started throwing, that is good news
+worth writing down, and it changes how loudly lesson 2 has to warn about it.</p>
+
+<div class="primary-source">
+  <span class="label">Read this before lesson 2</span>
+  <div class="title"><a href="https://surma.dev/things/is-postmessage-slow/">Is postMessage slow? — Surma</a></div>
+  <p>Twenty minutes. The budget numbers above come from here, but the parts worth your time
+  are the two escape hatches at the end — <em>patching</em> (send diffs, not state) and
+  <em>chunking</em> (stream the diffs). Both are live options for the engine's state mirror,
+  and both are cheaper than the architecture surgery. Skip its SharedArrayBuffer section;
+  it predates cross-origin isolation shipping and MDN supersedes it.</p>
+</div>
+
+<h2>Where this leaves the migration</h2>
+
+<p>The obvious plan — keep the canvas on the main thread, run the engine in a worker, post
+pixels back each flush — is now dead. Copying costs 810× your frame budget; transferring is
+not permitted; so the pixels cannot make that trip at all. Something else has to move
+instead.</p>
+
+<p>That is lesson 2: the canvas goes to the worker (<code>transferControlToOffscreen</code>),
+or the heap goes shared (<code>SharedArrayBuffer</code>), or the engine stays put and only
+the expensive non-interactive work leaves. Three architectures, and your answer on Android
+WebView eliminates at least one of them before we start.</p>
+
+<footer class="lesson-foot">
+  <p><strong>Where to go next</strong></p>
+  <ul>
+    <li><a href="../reference/boundary-crossing.html">Reference: Crossing the Worker Boundary</a> — the cheat sheet version of this lesson. Print it.</li>
+    <li><a href="../MISSION.md">MISSION.md</a> — why we're doing this at all</li>
+    <li><a href="../RESOURCES.md">RESOURCES.md</a> — the sourced reading list</li>
+    <li>Lesson 2 — <em>Three architectures</em> (not written yet; needs your Android WebView answer)</li>
+  </ul>
+  <div class="ask">
+    <strong>I'm your teacher here, not a document.</strong> If a row in any table above feels
+    arbitrary, or you want to know why I ruled something out, ask. Good things to push on:
+    why patching might beat all three architectures, what <code>Atomics</code> actually costs
+    in practice, or whether the codec worker's design already answers this.
+  </div>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

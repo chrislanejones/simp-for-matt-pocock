@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference · Crossing the Worker Boundary</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<header class="masthead">
+  <p class="eyebrow"><span>Engine in Worker</span><span class="sep">·</span><span>Reference</span></p>
+  <h1>Crossing the Worker Boundary</h1>
+  <p class="standfirst">Decision sheet. What moves, what costs, what throws.</p>
+</header>
+
+<h2>Pick a door</h2>
+
+<div class="tablewrap">
+<table>
+  <thead>
+    <tr><th>Door</th><th>Syntax</th><th>Cost</th><th>Sender after</th><th>Use when</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="verdict">Copy</td>
+      <td><code>post(obj)</code></td>
+      <td class="num">∝ size</td>
+      <td>Unchanged</td>
+      <td>Payload &lt; 100 KiB (or &lt; 10 KiB per frame)</td>
+    </tr>
+    <tr>
+      <td class="verdict">Move</td>
+      <td><code>post(o, [o.buffer])</code></td>
+      <td class="num"><strong>O(1)</strong></td>
+      <td>Detached, <code>byteLength&nbsp;0</code></td>
+      <td>Big JS-owned buffer, one owner at a time</td>
+    </tr>
+    <tr>
+      <td class="verdict">Share</td>
+      <td><code>post(sab)</code></td>
+      <td class="num">O(1) once</td>
+      <td>Still valid, same bytes</td>
+      <td>Both threads need live access</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Budgets</h2>
+
+<div class="tablewrap">
+<table>
+  <caption>Structured clone, safe on slow devices. Source: Surma.</caption>
+  <thead><tr><th>Context</th><th>Budget</th><th>Max clone</th></tr></thead>
+  <tbody>
+    <tr><td>User interaction</td><td class="num">100 ms</td><td class="num"><strong>100 KiB</strong></td></tr>
+    <tr><td>JS animation frame</td><td class="num">16 ms</td><td class="num"><strong>10 KiB</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="tablewrap">
+<table>
+  <caption>Image Horse payloads for scale.</caption>
+  <thead><tr><th>Surface</th><th>Bytes</th><th>vs frame budget</th></tr></thead>
+  <tbody>
+    <tr><td>1920×1080 RGBA</td><td class="num">7.9 MiB</td><td class="num">810×</td></tr>
+    <tr><td>4096×4096 RGBA</td><td class="num">64 MiB</td><td class="num">6,554×</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Transferable — the whole list</h2>
+
+<p><code>ArrayBuffer</code> · <code>AudioData</code> · <code>ImageBitmap</code> ·
+<code>MediaSourceHandle</code> · <code>MediaStreamTrack</code> · <code>MessagePort</code> ·
+<code>MIDIAccess</code> · <code>OffscreenCanvas</code> · <code>ReadableStream</code> ·
+<code>RTCDataChannel</code> · <code>TransformStream</code> · <code>VideoFrame</code> ·
+<code>WebTransportReceiveStream</code> · <code>WebTransportSendStream</code> ·
+<code>WritableStream</code></p>
+
+<div class="callout">
+  <span class="label">Not on that list</span>
+  <p style="margin-bottom:0">Typed arrays (<code>Uint8Array</code>,
+  <code>Uint8ClampedArray</code>, …) are <strong>serializable but not transferable</strong>.
+  Transfer <code>x.buffer</code>, never <code>x</code>. And the transferred thing must also
+  appear in the message body — the transfer list says <em>how</em> to send, not <em>what</em>.</p>
+</div>
+
+<h2>Failure modes</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>You did</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Transfer a typed array itself</td><td><code>TypeError</code> — not transferable</td></tr>
+    <tr><td>Transfer WASM memory buffer</td><td>Firefox/Safari <strong>throw</strong>; Chrome <strong>silently copies</strong></td></tr>
+    <tr><td>Read a buffer after transferring it</td><td>Throws; <code>byteLength</code> reads 0</td></tr>
+    <tr><td>Send a SAB without cross-origin isolation</td><td><code>postMessage</code> throws; constructor is hidden</td></tr>
+    <tr><td>Transfer list omits the body reference</td><td>Detached at source, never arrives</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Why WASM memory won't move</h2>
+
+<pre><code><span class="c">// WebAssembly.Memory sets this on its buffer:</span>
+[[ArrayBufferDetachKey]] = "WebAssembly.Memory"
+
+<span class="c">// postMessage calls DetachArrayBuffer with key = undefined.</span>
+<span class="c">// SameValue("WebAssembly.Memory", undefined) === false  →  TypeError</span></code></pre>
+
+<p>Per <a href="https://github.com/whatwg/html/issues/4601">whatwg/html #4601</a>. Chrome's
+copy-instead-of-throw predates WebAssembly (asm.js, 2014) and was kept for web compat.</p>
+
+<h2>Shared memory checklist</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Gate</th><th>Check</th></tr></thead>
+  <tbody>
+    <tr><td>Secure context</td><td>HTTPS</td></tr>
+    <tr><td>Cross-origin isolation</td><td><code>Cross-Origin-Opener-Policy: same-origin</code><br><code>Cross-Origin-Embedder-Policy: require-corp</code></td></tr>
+    <tr><td>Runtime probe</td><td><code>if (crossOriginIsolated) { … }</code></td></tr>
+    <tr><td>Shared WASM heap</td><td><code>new WebAssembly.Memory({ initial: n, shared: true })</code></td></tr>
+    <tr><td>Synchronisation</td><td><code>Atomics.wait</code> / <code>notify</code></td></tr>
+    <tr><td>Android WebView</td><td><strong>Unsupported.</strong> Blocker if targeted.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Escape hatches before architecture surgery</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Technique</th><th>Idea</th><th>Cost becomes</th></tr></thead>
+  <tbody>
+    <tr><td>Patching</td><td>Send diffs, not state</td><td>∝ size of the change</td></tr>
+    <tr><td>Chunking</td><td>Split a big diff across frames</td><td>Bounded per frame; reads as animation</td></tr>
+    <tr><td>Binary layout</td><td>Serialise to a plain <code>ArrayBuffer</code>, transfer it</td><td>O(1) transfer, manual marshalling</td></tr>
+  </tbody>
+</table>
+</div>
+
+<footer class="lesson-foot">
+  <p>From <a href="../lessons/0001-what-crosses-the-line.html">Lesson 1 · What Crosses the Line</a>.
+  Sources: <a href="https://surma.dev/things/is-postmessage-slow/">Surma</a>,
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Transferable_objects">MDN Transferable objects</a>,
+  <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer">MDN SharedArrayBuffer</a>,
+  <a href="https://github.com/whatwg/html/issues/4601">whatwg/html #4601</a>.</p>
+</footer>
+
+</body>
+</html>
