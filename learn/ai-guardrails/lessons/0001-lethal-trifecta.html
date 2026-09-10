@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesson 1 · The Lethal Trifecta</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<header class="masthead">
+  <p class="eyebrow">
+    <span>AI Guardrails</span><span class="sep">·</span><span>Lesson 01</span>
+    <span class="sep">·</span><span>~20 minutes</span>
+  </p>
+  <h1>The Lethal Trifecta</h1>
+  <p class="standfirst">One framework for judging any agent setup, and one file on your
+  own machine that turns out not to mean what it looks like it means.</p>
+</header>
+
+<p class="lead">Your global <code>CLAUDE.md</code> already denies destructive commands,
+blocks reads of secrets, and keeps overnight runs on a disposable branch. That's not
+naive — it's several textbook mitigations, arrived at by instinct rather than by name.
+This lesson gives the instinct a name, then shows you the one place your setup's
+strongest-looking rule is weaker than it reads.</p>
+
+<h2>The shape of the risk</h2>
+
+<p>Security researcher Simon Willison names three conditions that, combined, make an
+AI agent dangerous. Break any one of the three and the dangerous combination can't
+complete — which is the whole reason the framework is useful: it turns "is this agent
+safe?" into "which of the three legs does this setup actually cut?"</p>
+
+<div class="tablewrap">
+<table>
+  <caption>Willison's three legs, and what each one is in a coding agent specifically.</caption>
+  <thead>
+    <tr><th>Leg</th><th>Willison's definition</th><th>In a coding agent, this is…</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="verdict">Private data</td>
+      <td>"Access to your private data"</td>
+      <td>Your repos, <code>.ssh</code>, <code>.aws</code>, <code>.env</code> files, shell history</td>
+    </tr>
+    <tr>
+      <td class="verdict">Untrusted content</td>
+      <td>"Exposure to untrusted content"</td>
+      <td>A web fetch result, a GitHub issue's text, an MCP tool's output, a file inside a cloned repo</td>
+    </tr>
+    <tr>
+      <td class="verdict">External communication</td>
+      <td>"The ability to externally communicate"</td>
+      <td><code>git push</code>, <code>curl</code>, an MCP write call, a Slack or email tool — even a crafted commit message</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout">
+  <span class="label">Willison, in his own words</span>
+  <p style="margin-bottom:0">"If your agent combines these three features, an attacker
+  can easily trick it into accessing your private data and sending it to that
+  attacker." He calls the combination
+  <a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/">the lethal
+  trifecta</a>, and adds the line worth remembering for every mitigation that follows:
+  "We still don't know how to 100% reliably prevent this from happening."</p>
+</div>
+
+<h2>What you already cut off</h2>
+
+<p>Run your global rules through the same lens and most of them turn out to be legs of
+this triangle, cut deliberately. This is the part worth sitting with for a second: you
+built this before you had the name for it.</p>
+
+<div class="tablewrap">
+<table>
+  <caption>Your CLAUDE.md hard rules, mapped to the trifecta.</caption>
+  <thead>
+    <tr><th>Your rule</th><th>What it narrows</th><th>Mechanism</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Secrets: never read/edit <code>.env*</code>, <code>.ssh/</code>, <code>.aws/</code>, <code>*.pem</code>, <code>*.key</code></td>
+      <td class="verdict">Private data</td>
+      <td>Read/Edit deny rules in <code>settings.json</code></td>
+    </tr>
+    <tr>
+      <td>Scope: one target per session, adjacent problems go to <code>PARKING_LOT.md</code></td>
+      <td>Agent's powers, not a leg directly</td>
+      <td>Discipline — nothing in tooling enforces this yet</td>
+    </tr>
+    <tr>
+      <td>Overnight runs: worktree + task branch, never main's working tree</td>
+      <td class="verdict">Blast radius of external comm.</td>
+      <td>Damage is contained to a disposable branch, not prevented</td>
+    </tr>
+    <tr>
+      <td>Git safety: no force-push to main, no rewritten pushed history</td>
+      <td class="verdict">External communication, gated</td>
+      <td>A human has to push — the agent can prepare, not ship</td>
+    </tr>
+    <tr>
+      <td>WSL boundary: stay in <code>~/</code>, never <code>/mnt/c/</code> unless named</td>
+      <td class="verdict">Private data, scoped</td>
+      <td>Working-directory boundary</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>Notice the shape: you've mostly narrowed the <em>data</em> leg and gated the
+<em>egress</em> leg. The <em>untrusted content</em> leg — what happens when Claude
+reads a GitHub issue, a fetched page, or an MCP tool's output that someone else
+controls — isn't addressed by anything above. Neither framework nor your rules make
+that leg go away; they just haven't tried to yet. Worth knowing, not yet worth fixing
+in this lesson.</p>
+
+<h2>The wall that isn't</h2>
+
+<p>Here's the surprising part. Your deny list includes six variations on stopping
+<code>rm -rf</code>. It reads like a wall. Anthropic's own documentation says
+otherwise:</p>
+
+<div class="callout">
+  <span class="label">Claude Code docs — Configure permissions</span>
+  <p style="margin-bottom:0">"A Bash rule matches the command text Claude writes,
+  after Claude Code splits compound commands and strips wrappers. It doesn't match the
+  same program invoked in a different form, so a deny or ask rule&nbsp;…&nbsp;isn't a
+  security boundary around the program." Their own example: <code>Bash(rm *)</code>
+  stops <code>rm -rf build/</code> but not <code>/bin/rm -rf build/</code> or
+  <code>bash -c 'rm -rf build/'</code>.</p>
+</div>
+
+<p>Your rule is <code>Bash(rm -rf *)</code> — same mechanism, same gap. It's matching
+<em>the text of the command</em>, not <em>what the command does</em>. Apply the same
+logic and the pattern holds:</p>
+
+<div class="tablewrap">
+<table>
+  <caption>Your deny rule, against four ways to get the same result.</caption>
+  <thead><tr><th>Command</th><th>Matches your deny rule?</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>rm -rf /tmp/scratch</code></td>
+      <td class="verdict">Blocked</td>
+      <td>Literal text match against <code>Bash(rm -rf *)</code></td>
+    </tr>
+    <tr>
+      <td><code>/bin/rm -rf /tmp/scratch</code></td>
+      <td class="verdict">Not blocked</td>
+      <td>Same program, different text — the rule never sees "rm -rf"</td>
+    </tr>
+    <tr>
+      <td><code>bash -c 'rm -rf /tmp/scratch'</code></td>
+      <td class="verdict">Not blocked</td>
+      <td>The rule sees <code>bash -c '…'</code>, not <code>rm</code></td>
+    </tr>
+    <tr>
+      <td><code>sudo rm -rf /tmp/scratch</code></td>
+      <td class="verdict">Blocked</td>
+      <td>Caught anyway — by your separate <code>Bash(sudo *)</code> deny rule</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>That last row matters as much as the gap does: your rules overlap, so one escape
+route doesn't mean an open door. But it does mean the six <code>rm</code> variants in
+your deny list are a <strong>speed bump against an honest mistake</strong>, not a
+boundary against a model that's been steered by hostile content — which is exactly
+what "untrusted content" exposure in the trifecta buys an attacker the chance to do.</p>
+
+<p>This isn't hypothetical. Two separate, dated incidents against real Claude Code
+users show the same failure shape landing in practice, months apart:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Incident</th><th>Date</th><th>What happened</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><a href="https://github.com/anthropics/claude-code/issues/10077">claude-code #10077</a></td>
+      <td class="num">Oct 2025</td>
+      <td><code>rm -rf</code> run from <code>/</code> deleted the user's own files</td>
+    </tr>
+    <tr>
+      <td><a href="https://github.com/anthropics/claude-code/issues/49129">claude-code #49129</a></td>
+      <td class="num">Apr 2026</td>
+      <td>Files moved into a directory, then that directory <code>rm -rf</code>'d — ~1,500 files, ~50&nbsp;GB</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>So what would actually be a wall</h2>
+
+<p>Not a full lesson yet — just the map, so "advisory" doesn't sound like a dead end.
+Three tiers exist, and only the bottom two are code, not pattern-matching:</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Mechanism</th><th>What it is</th><th>Deterministic?</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Permission rules (allow/deny/ask)</td>
+      <td>Pattern match on command text</td>
+      <td class="verdict">No — advisory, as shown above</td>
+    </tr>
+    <tr>
+      <td><code>PreToolUse</code> hooks</td>
+      <td>Your own code runs before the tool call; exiting 2 blocks it</td>
+      <td class="verdict">Yes</td>
+    </tr>
+    <tr>
+      <td>OS-level sandbox</td>
+      <td>Process isolation — filesystem and network, via bubblewrap/Seatbelt</td>
+      <td class="verdict">Yes, mostly</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>"Mostly" on the last row because it has a stated limit worth knowing now: "MCP
+servers and hooks are separate processes that run unconstrained on the host" — the
+sandbox doesn't cover everything that can act on your behalf. Your <code>settings.json</code>
+has ten hook events configured, but neither of us has read what they actually do yet.
+That's next lesson's material, once we know.</p>
+
+<h2>Retrieval practice — trifecta or not?</h2>
+
+<p>Four scenarios, all things you could plausibly run. For each: does it complete the
+trifecta, or is a leg missing?</p>
+
+<div class="quiz" data-options="Safe|Trifecta-complete">
+  <ol style="list-style:none;padding:0;margin:0">
+    <li class="q"
+        data-answer="Safe"
+        data-why="Private data access exists (it's editing your repo), but there's no untrusted content in the loop and no egress this session. Missing two of three legs — an attacker has nothing to inject and nowhere to send it.">
+      <div class="stem">
+        <p>Claude Code edits files in a local repo. No web fetch, no MCP tools, git push disabled for the session.</p>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Trifecta-complete"
+        data-why="All three: private data (the repo), untrusted content (the issue text — anyone can write a GitHub issue), and external communication (the push). The issue text is the injection vector; the push is the exfiltration path.">
+      <div class="stem">
+        <p>Claude Code reads a GitHub issue to triage a bug, writes a fix, commits, and pushes the branch for a PR.</p>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Safe"
+        data-why="Untrusted content is present (the README), but there's no private data to steal and no egress path — it's a read-only summary with no repo or credentials in scope. Only one leg out of three.">
+      <div class="stem">
+        <p>Claude Code fetches a public open-source project's README and summarizes it. No repo access, no write tools.</p>
+      </div>
+    </li>
+
+    <li class="q"
+        data-answer="Trifecta-complete"
+        data-why="Your Gmail MCP tools are exactly this shape: private data (your inbox), untrusted content (an email anyone can send you), and external communication (reply/forward). This is the canonical trifecta example in Willison's own writing, and it's live in your tool list today.">
+      <div class="stem">
+        <p>An MCP mail tool reads an incoming email and can reply or forward on your behalf.</p>
+      </div>
+    </li>
+  </ol>
+  <div class="score"></div>
+</div>
+
+<h2>Retrieval practice — does the rule catch it?</h2>
+
+<p>Same deny rule as above, <code>Bash(rm -rf *)</code>. Four commands — blocked or
+not, from memory:</p>
+
+<div class="quiz" data-options="Blocked|Not blocked">
+  <ol style="list-style:none;padding:0;margin:0">
+    <li class="q" data-answer="Blocked" data-why="Literal text match — this is exactly what the rule was written to catch.">
+      <div class="stem"><pre><code>rm -rf /tmp/scratch</code></pre></div>
+    </li>
+    <li class="q" data-answer="Not blocked" data-why="Same deletion, different program path. The rule never sees the string &quot;rm -rf&quot;.">
+      <div class="stem"><pre><code>/bin/rm -rf /tmp/scratch</code></pre></div>
+    </li>
+    <li class="q" data-answer="Blocked" data-why="Not by the rm rule — by the separate Bash(sudo *) deny rule, which matches first regardless of what follows.">
+      <div class="stem"><pre><code>sudo rm -rf /tmp/scratch</code></pre></div>
+    </li>
+    <li class="q" data-answer="Not blocked" data-why="The rule sees bash -c '...' as the command text, not rm. Same result, invisible to a text-matching rule.">
+      <div class="stem"><pre><code>bash -c 'rm -rf /tmp/scratch'</code></pre></div>
+    </li>
+  </ol>
+  <div class="score"></div>
+</div>
+
+<h2>Verify it yourself</h2>
+
+<p>Don't take row two of the first table on my word — go watch your own setup decide.
+In a real Claude Code session (any project, doesn't need to be this one):</p>
+
+<pre><code><span class="c"># make two disposable, harmless probe files</span>
+mkdir -p /tmp/trifecta-test
+touch /tmp/trifecta-test/probe-a.txt /tmp/trifecta-test/probe-b.txt</code></pre>
+
+<p>Then ask Claude, in two separate turns:</p>
+
+<ol>
+  <li><code>rm -rf /tmp/trifecta-test/probe-a.txt</code> — watch what happens.</li>
+  <li><code>bash -c 'rm -rf /tmp/trifecta-test/probe-b.txt'</code> — watch what happens to this one.</li>
+</ol>
+
+<p>Bring me what you saw. If both got stopped, that's worth writing down — it means
+either a hook is already doing more than the deny rule, or the docs' example doesn't
+transfer to your rule the way this lesson assumed, and either one changes what lesson
+2 needs to cover.</p>
+
+<div class="primary-source">
+  <span class="label">Read this before lesson 2</span>
+  <div class="title"><a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/">The lethal trifecta for AI agents — Simon Willison</a></div>
+  <p>Five minutes. Everything above builds on this one framework, and it's the
+  shortest, clearest statement of it that exists. The follow-up worth a second look
+  afterward is his <a href="https://simonwillison.net/2025/Sep/30/designing-agentic-loops/">Designing
+  agentic loops</a> — it's specifically about unattended runs, which is your first
+  success criterion for this whole mission.</p>
+</div>
+
+<h2>Where this leaves your setup</h2>
+
+<p>Nothing here says your setup is unsafe — the overlap in row four above (the
+<code>sudo</code> rule catching what the <code>rm</code> rule missed) is a real,
+working defense-in-depth pattern, and you built it without the vocabulary for it.
+What this lesson changes is the claim you can make about it: not "deny rules stop
+destructive commands," but "deny rules stop the destructive commands an honest agent
+would write, and something else has to stop the rest." Lesson 2 is about what that
+something else is — starting with what your ten configured hooks actually do, since
+right now that's the one mechanism on the table that's genuinely deterministic and
+completely unread.</p>
+
+<footer class="lesson-foot">
+  <p><strong>Where to go next</strong></p>
+  <ul>
+    <li><a href="../reference/guardrail-mechanics.html">Reference: Guardrail Mechanics</a> — the cheat sheet version of this lesson. Print it.</li>
+    <li><a href="../MISSION.md">MISSION.md</a> — why we're doing this at all</li>
+    <li><a href="../RESOURCES.md">RESOURCES.md</a> — every source cited above, with notes on when to reach for each</li>
+    <li>Lesson 2 — <em>What your hooks actually do</em> (not written yet; needs the verify-it-yourself results above, and a read of your hook commands)</li>
+  </ul>
+  <div class="ask">
+    <strong>I'm your teacher here, not a document.</strong> If any verdict above feels
+    arbitrary, or you want to know why a rule catches one command and not another, ask.
+    Good things to push on: whether an <code>ask</code> tier would close the gap without
+    slowing you down, what your ten hooks currently do, or whether the sandbox is worth
+    turning on given the domain-fronting caveat in its own README.
+  </div>
+</footer>
+
+<script src="../assets/quiz.js"></script>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference · Guardrail Mechanics</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<header class="masthead">
+  <p class="eyebrow"><span>AI Guardrails</span><span class="sep">·</span><span>Reference</span></p>
+  <h1>Guardrail Mechanics</h1>
+  <p class="standfirst">Decision sheet. What's advisory, what's real, what's still unread.</p>
+</header>
+
+<h2>The lethal trifecta</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Leg</th><th>In a coding agent</th><th>Cut by</th></tr></thead>
+  <tbody>
+    <tr><td class="verdict">Private data</td><td>Repos, <code>.ssh</code>, <code>.aws</code>, <code>.env</code></td><td>Read/Edit deny rules, working-dir boundary</td></tr>
+    <tr><td class="verdict">Untrusted content</td><td>Web fetch, issue text, MCP output, cloned-repo files</td><td>Nothing in this setup yet</td></tr>
+    <tr><td class="verdict">External comm.</td><td><code>git push</code>, <code>curl</code>, MCP writes, Slack/email tools</td><td>Human-gated push, no auto-push to main</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout">
+  <span class="label">Willison</span>
+  <p style="margin-bottom:0">"If your agent combines these three features, an attacker
+  can easily trick it into accessing your private data and sending it to that
+  attacker." Break any one leg and the chain can't complete.
+  <a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/">Source</a>.</p>
+</div>
+
+<h2>Enforcement tiers — advisory vs. real</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Mechanism</th><th>Deterministic?</th><th>Covers</th><th>Known gap</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Permission rules (allow/deny/ask)</td>
+      <td class="verdict">No</td>
+      <td>Bash command text, file read/write paths</td>
+      <td>Matches literal text, not the program — <code>/bin/rm</code> or <code>bash -c '…'</code> slips past an <code>rm</code> rule</td>
+    </tr>
+    <tr>
+      <td><code>PreToolUse</code> hook, exit 2</td>
+      <td class="verdict">Yes</td>
+      <td>Anything you write code to check, before the tool runs</td>
+      <td>Only as good as the check you wrote; separate process from the sandbox</td>
+    </tr>
+    <tr>
+      <td>OS-level sandbox (bubblewrap/Seatbelt)</td>
+      <td class="verdict">Yes, mostly</td>
+      <td>Filesystem writes and network egress for Bash + child processes</td>
+      <td>"MCP servers and hooks are separate processes that run unconstrained on the host"</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Rule evaluation order</h2>
+
+<p><strong>Deny → Ask → Allow.</strong> First match wins; rule specificity doesn't
+change the order. A deny rule can't carry allowlist exceptions. If a tool is denied at
+any settings level, no other level can allow it.</p>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Syntax</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>Bash(rm -rf *)</code></td><td>Matches command text starting with exactly this, after Claude Code splits compound commands and strips wrappers</td></tr>
+    <tr><td><code>Bash(git:*)</code></td><td>Equivalent to a trailing space + <code>*</code></td></tr>
+    <tr><td><code>Bash(command:rm *)</code></td><td>Not a real form — ignored with a startup warning</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Permission modes</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Mode</th><th>Scope</th><th>Safety net</th></tr></thead>
+  <tbody>
+    <tr><td><code>default</code> (Manual)</td><td>Read-only until approved</td><td>You, every time</td></tr>
+    <tr><td><code>acceptEdits</code></td><td>Edits auto-approved</td><td>You, for everything else</td></tr>
+    <tr><td><code>auto</code></td><td>Everything, with background checks</td><td>A classifier model — non-deterministic</td></tr>
+    <tr><td><code>dontAsk</code></td><td>Only pre-approved tools</td><td>Your allowlist</td></tr>
+    <tr><td><code>bypassPermissions</code> (<code>--dangerously-skip-permissions</code>)</td><td>Everything</td><td class="verdict">None — isolated containers/VMs only</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Deny rules block in every mode, including <code>bypassPermissions</code>. Allow
+rules have no effect there. The classifier behind <code>auto</code> mode has a
+documented bypass: an <a href="https://simonwillison.net/2026/Aug/27/breaking-claude-code-opus-5-auto-mode/">80%
+success rate</a> was demonstrated against it via a crafted archive file.</p>
+
+<h2>Your current settings, as of 2026-09-10</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td><code>permissions.defaultMode</code></td><td><code>auto</code></td></tr>
+    <tr><td><code>permissions.deny</code></td><td>14 rules — destructive <code>rm</code> variants, <code>sudo</code>, secrets read/edit</td></tr>
+    <tr><td><code>permissions.allow</code></td><td>~188 rules — broad dev-tool allowlist</td></tr>
+    <tr><td><code>permissions.ask</code></td><td>None configured</td></tr>
+    <tr><td><code>skipDangerousModePermissionPrompt</code></td><td><code>true</code></td></tr>
+    <tr><td>Hooks configured</td><td>10 events; contents not yet inventoried</td></tr>
+    <tr><td>Sandbox (OS-level)</td><td>Not confirmed enabled — check <code>/sandbox</code></td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Documented incidents (dated, verified)</h2>
+
+<div class="tablewrap">
+<table>
+  <thead><tr><th>Incident</th><th>Date</th><th>Root cause</th></tr></thead>
+  <tbody>
+    <tr><td><a href="https://github.com/anthropics/claude-code/issues/10077">claude-code #10077</a></td><td class="num">Oct 2025</td><td><code>rm -rf</code> from <code>/</code>; hit permission-denied on system dirs, still wiped user files</td></tr>
+    <tr><td><a href="https://github.com/anthropics/claude-code/issues/49129">claude-code #49129</a></td><td class="num">Apr 2026</td><td>Files moved into a dir under <code>acceptEdits</code> mode, then that dir <code>rm -rf</code>'d — ~50GB</td></tr>
+    <tr><td><a href="https://www.theregister.com/2025/07/21/replit_saastr_vibe_coding_incident/">Replit production DB</a></td><td class="num">Jul 2025</td><td>No dev/prod separation; agent ignored a stated code freeze</td></tr>
+    <tr><td><a href="https://aws.amazon.com/security/security-bulletins/AWS-2025-015/">Amazon Q extension</a></td><td class="num">Jul 2025</td><td>Injected prompt shipped via an over-scoped CI token; failed only on a syntax error</td></tr>
+  </tbody>
+</table>
+</div>
+
+<footer class="lesson-foot">
+  <p>From <a href="../lessons/0001-lethal-trifecta.html">Lesson 1 · The Lethal Trifecta</a>.
+  Full sourcing in <a href="../RESOURCES.md">RESOURCES.md</a>.</p>
+</footer>
+
+</body>
+</html>
