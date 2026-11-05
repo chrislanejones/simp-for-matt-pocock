@@ -70,4 +70,4 @@
 | Engine in a Worker | [What crosses the line?](learn/engine-in-worker/lessons/0001-what-crosses-the-line.html) |
 | AI Guardrails | [The lethal trifecta](learn/ai-guardrails/lessons/0001-lethal-trifecta.html) |
 
-Open the lesson HTML locally for interactive exercises; GitHub displays its source.
+[Open the learning site](https://chrislanejones.github.io/simp-for-matt-pocock/) for interactive lessons and references, or open `index.html` locally.
