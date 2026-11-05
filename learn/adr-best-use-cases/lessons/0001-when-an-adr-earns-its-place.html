@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADR Best Use Cases · When an ADR earns its place</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<link rel="stylesheet" href="../assets/practice.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/exercise.js" defer></script>
+</head>
+<body>
+<header class="masthead">
+  <p class="eyebrow"><span>ADR Best Use Cases</span><span class="sep">·</span><span>Lesson 01</span><span class="sep">·</span><span>20 minutes</span></p>
+  <h1>When an ADR earns its place</h1>
+  <p class="standfirst">Choose what needs a lasting explanation. Then write one decision a future maintainer can understand.</p>
+</header>
+<nav aria-label="Lesson sections"><a href="#judgment">The judgment</a> · <a href="#practice">Try six cases</a> · <a href="#draft">Write a draft</a> · <a href="../reference/adr-or-pr.html">Quick reference</a></nav>
+<main>
+<p class="lead">Your win today: identify a decision worth recording, explain why, and leave with a <strong>proposed practice ADR</strong>. ADR means <em>Architecture Decision Record</em>.</p>
+<div class="callout"><span class="label">Practice context</span><p>These examples borrow workers and image storage from the existing Image Horse learning track. The constraints below are hypothetical. They do not describe choices already made or shipped in Image Horse.</p></div>
+<p class="small">Before you start, say aloud: have you written an ADR, reviewed one, or only heard the term? If you already use them, focus on the borderline cases and explain what evidence would change your answer.</p>
+
+<h2 id="judgment">1. Save the reason that code cannot tell you</h2>
+<p>Code reveals the implementation. An ADR preserves the context and tradeoffs behind an architectural choice. That distinction is central to the <a href="https://adr.github.io/">ADR community’s definition</a>.</p>
+<div class="tablewrap"><table>
+<caption>A practical decision aid for this lesson—not a mandatory industry checklist.</caption>
+<thead><tr><th scope="col">Ask</th><th scope="col">An ADR is useful when…</th></tr></thead>
+<tbody>
+<tr><td>What does this constrain?</td><td>Ownership, interfaces, data compatibility, or an important quality such as recoverability.</td></tr>
+<tr><td>Why might someone undo it?</td><td>The obvious alternative is attractive, but a non-obvious tradeoff ruled it out.</td></tr>
+<tr><td>Where will the reason be needed?</td><td>Across later changes, onboarding, or a future replacement decision.</td></tr>
+<tr><td>Is the reason already sufficient in the PR?</td><td>A routine correction usually needs no separate architectural record.</td></tr>
+</tbody></table></div>
+<p><a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions">Michael Nygard’s original article</a> focuses on architecturally significant decisions. <strong>Diff size is a poor proxy.</strong> A one-line durability setting can change the product’s guarantees; a thousand formatting changes may change none.</p>
+<p>“Use a PR” is our application of that significance test, not a ban on documenting small changes. Likewise, adding a dependency is a reason to investigate the tradeoff, not proof that every package needs an ADR.</p>
+
+<h2 id="practice">2. Classify the decision</h2>
+<div class="tablewrap"><table><thead><tr><th scope="col">Button</th><th scope="col">Meaning</th></tr></thead><tbody>
+<tr><td><strong>ADR entry</strong></td><td>Preserve the architectural rationale in a decision record.</td></tr>
+<tr><td><strong>PR detail</strong></td><td>A clear PR explanation is sufficient for the facts given.</td></tr>
+<tr><td><strong>More info</strong></td><td>Ask for a missing constraint before deciding.</td></tr>
+</tbody></table></div>
+<p>Write a short reason, then choose. Feedback checks the choice; compare its explanation with yours. The browser does not grade your reasoning.</p>
+<noscript><p class="callout">JavaScript is off. You can still read and write your answers on paper; enable JavaScript for quiz feedback and the draft download.</p></noscript>
+<div class="quiz" data-options="ADR entry|PR detail|More info">
+<ol>
+<li class="q" data-answer="ADR entry" data-why="This establishes ownership and a message contract across a worker boundary. Preserve why the boundary is worth its coordination and data-transfer costs; do not merely list the files moved.">
+<div class="stem"><p>The image engine will move to a worker. It will own mutable image state, while the UI sends commands and receives results. Keeping it on the main thread was considered.</p></div>
+<label for="reason-1">What makes this worth recording—or not?<textarea class="reason" id="reason-1" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="PR detail" data-why="The facts describe a spelling correction with no change to behavior, contract, or policy. The PR can preserve the reason. A hidden change in user expectations would require a fresh judgment.">
+<div class="stem"><p>A button says “Dowload.” You correct it to “Download.” Its behavior and accessibility name otherwise remain equivalent.</p></div>
+<label for="reason-2">What lasting constraint changes?<textarea class="reason" id="reason-2" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="ADR entry" data-why="A durable project format affects compatibility and migration. Record why compatibility with the old format is being traded away, what the migration promises, and what recovery costs remain.">
+<div class="stem"><p>You replace the saved-project format. New saves will require a migration path, and older app versions will not open them. You choose this over maintaining the old format indefinitely.</p></div>
+<label for="reason-3">What would a future maintainer need to know?<textarea class="reason" id="reason-3" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="PR detail" data-why="Applying an already agreed formatter is mechanical execution. The architecture and policy are unchanged. Choosing a new team-wide formatting policy would be a different decision from this scenario.">
+<div class="stem"><p>An existing formatter changes indentation in 120 files. You are applying the already agreed configuration, with no semantic or policy changes.</p></div>
+<label for="reason-4">Does the size of the diff change your judgment?<textarea class="reason" id="reason-4" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="More info" data-why="A package name alone does not establish significance. Ask what it owns, which interfaces depend on it, and what replacement would involve. A throwaway development helper differs from a core persistence dependency.">
+<div class="stem"><p>A teammate says, “I added a library.” You have no information about its role, runtime use, data model, or replacement cost.</p></div>
+<label for="reason-5">What specific question would you ask?<textarea class="reason" id="reason-5" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="ADR entry" data-why="Trading recoverability for speed changes an important quality guarantee. The one-line implementation hides a consequential choice. The record should explain acceptable loss and the evidence that justifies the tradeoff.">
+<div class="stem"><p>A one-line setting makes saving faster by allowing the most recent acknowledged edits to be lost after a crash. The team is deliberately accepting that tradeoff.</p></div>
+<label for="reason-6">Which guarantee changes?<textarea class="reason" id="reason-6" rows="2"></textarea></label>
+</li>
+</ol>
+<div class="score"></div>
+</div>
+
+<h2 id="draft">3. Write the reason, including the cost</h2>
+<p>Pick one ADR-worthy scenario above, or use your own decision. Complete the five fields below. Keep the whole record short enough that someone will actually read it.</p>
+<p>A proposed decision is awaiting agreement. Acceptance follows your project’s review process. When an accepted decision is replaced, preserve it and link its successor. See the <a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html">AWS ADR process</a>.</p>
+<p class="small">This exercise adds a separate alternatives field to make your reasoning visible; it is not a mandatory section of Nygard’s original template. Your local ADR skill also has its own format and acceptance rules. Use those when creating a real project record.</p>
+<form id="adr-draft">
+<label for="context">Context — what forces a choice?<textarea id="context" name="context" required rows="3" placeholder="State the constraint, its impact, and what is known versus assumed."></textarea></label>
+<label for="decision">Decision — what are you proposing?<textarea id="decision" name="decision" required rows="3" placeholder="Name the boundary, policy, or contract. Avoid a list of implementation tasks."></textarea></label>
+<label for="benefit">Benefit — what gets better?<textarea id="benefit" name="benefit" required rows="2" placeholder="Tie the benefit to the constraint in your context."></textarea></label>
+<label for="cost">Cost — what gets harder or worse?<textarea id="cost" name="cost" required rows="2" placeholder="Name a concrete drawback someone must live with."></textarea></label>
+<label for="alternative">Alternative — what plausible option lost, and why?<textarea id="alternative" name="alternative" required rows="3" placeholder="Give the strongest reasonable alternative and the deciding constraint."></textarea></label>
+<p class="small">Nothing is sent or saved automatically. Download your draft before closing or reloading this page. The check below confirms that fields are filled; it does not judge the architecture or accept the decision.</p>
+<div class="actions"><button type="submit">Review my draft</button><button id="download-draft" type="button" disabled>Download practice ADR</button></div>
+</form>
+<section id="draft-review" hidden aria-labelledby="review-title">
+<h3 id="review-title">Your proposed practice record</h3>
+<pre id="draft-output"></pre>
+<div class="tablewrap"><table><thead><tr><th scope="col">Self-check</th><th scope="col">Look for</th></tr></thead><tbody>
+<tr><td>Could the code tell me this?</td><td>The record explains why, beyond what was implemented.</td></tr>
+<tr><td>Is the cost real?</td><td>A specific burden, loss, or constraint—not “some complexity.”</td></tr>
+<tr><td>Was the alternative credible?</td><td>A reasonable option that lost for a stated reason.</td></tr>
+<tr><td>What could change my mind?</td><td>A measurable result or changed constraint worth revisiting.</td></tr>
+</tbody></table></div>
+<details><summary>Compare with a worked example after your attempt</summary>
+<p class="small">Illustrative proposal only. These assumptions have not been verified against Image Horse.</p>
+<div class="tablewrap"><table><thead><tr><th scope="col">Part</th><th scope="col">Example</th></tr></thead><tbody>
+<tr><td>Context</td><td>Assume a reproduced synchronous export blocks pointer handling. The UI must remain responsive during export.</td></tr>
+<tr><td>Decision</td><td>Propose worker ownership of the image engine, with explicit commands and results between worker and UI.</td></tr>
+<tr><td>Benefit</td><td>Engine execution no longer directly occupies the UI thread. Measure end-to-end input latency before accepting this proposal.</td></tr>
+<tr><td>Cost</td><td>We must handle asynchronous failures, message ordering, and the cost of transferring or copying image data.</td></tr>
+<tr><td>Alternative</td><td>Keep the engine on the UI thread and split export into short tasks. In this scenario, reject it because the synchronous export cannot be divided without redesigning the engine.</td></tr>
+</tbody></table></div>
+</details>
+</section>
+
+<h2 id="transfer">4. Try a different domain</h2>
+<p>Close the reference. Apply the same judgment to a new case:</p>
+<div class="quiz" data-options="ADR entry|PR detail|More info"><ol>
+<li class="q" data-answer="ADR entry" data-why="Requiring fresh server permissions changes the offline contract and access guarantees. Preserve the security benefit, the offline cost, and why cached authorization was rejected. The same test applies outside worker and storage decisions.">
+<div class="stem"><p>An app previously opened downloaded documents offline. It will now require a fresh server permission check before every open, choosing revocation enforcement over offline access.</p></div>
+<label for="reason-transfer">Which tradeoff will future developers need explained?<textarea class="reason" id="reason-transfer" rows="2"></textarea></label>
+</li></ol><div class="score"></div></div>
+<p>Tomorrow, choose a different PR and explain your verdict without this page. A useful answer names the architectural constraint—or explains why there isn’t one.</p>
+<div class="primary-source"><span class="label">Read next · primary source</span><a class="title" href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions">Documenting Architecture Decisions — Michael Nygard</a><p>Read the explanation of context and consequences. Compare it with your draft: did you preserve the forces behind the choice?</p></div>
+</main>
+<footer class="lesson-foot">
+<p><a href="../reference/adr-or-pr.html">Printable ADR-or-PR reference</a> · <a href="../MISSION.md">Mission</a> · <a href="../RESOURCES.md">Sources</a></p>
+<p>Related track: <a href="../../engine-in-worker/lessons/0001-what-crosses-the-line.html">What crosses the worker boundary?</a></p>
+<div class="ask"><strong>Bring your reasoning back to chat.</strong> Paste your draft or a case that still feels borderline. Ask any follow-up question; we’ll review the tradeoff together. Learning records come from what you demonstrate, not merely finishing this page.</div>
+</footer>
+</body>
+</html>

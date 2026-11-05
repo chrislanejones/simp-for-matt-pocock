@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference · ADR or PR?</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<link rel="stylesheet" href="../assets/practice.css">
+</head>
+<body class="reference">
+<header class="masthead">
+  <p class="eyebrow"><span>ADR Best Use Cases</span><span class="sep">·</span><span>Reference</span></p>
+  <h1>ADR or PR?</h1>
+  <p class="standfirst">Preserve the reason a future maintainer will need.</p>
+</header>
+<main>
+<h2 id="choose">Choose the record</h2>
+<div class="tablewrap">
+<table>
+  <caption>Practice heuristics applied to hypothetical Image Horse-style decisions.</caption>
+  <thead><tr><th scope="col">Change</th><th scope="col">Useful home</th><th scope="col">Reason</th></tr></thead>
+  <tbody>
+    <tr><td>Move engine ownership into a worker</td><td class="verdict">ADR + PR</td><td>Preserve the boundary choice; explain the implementation in its PR.</td></tr>
+    <tr><td>Replace a persisted project format</td><td class="verdict">ADR + PR</td><td>Compatibility and migration obligations outlive the patch.</td></tr>
+    <tr><td>Choose a core library over a viable alternative</td><td class="verdict">ADR candidate</td><td>Record enduring tradeoffs if they shape the system.</td></tr>
+    <tr><td>Fix a typo or behavior-preserving rename</td><td class="verdict">Usually PR</td><td>A lasting architectural rationale is unlikely to be missing.</td></tr>
+    <tr><td>Change one line that alters retention policy</td><td class="verdict">ADR candidate</td><td>Small diff; potentially large data and operational consequences.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Judge architectural significance, not line count. Nygard identifies structure, quality attributes, dependencies, interfaces, and construction techniques as relevant areas. The table applies that guidance; it is not a universal list of triggers. <a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions">Source: Nygard</a>.</p>
+
+<div class="callout">
+  <span class="label">The question to remember</span>
+  <p>What could a future maintainer accidentally undo because the code does not explain the tradeoff?</p>
+</div>
+
+<h2 id="template">A compact practice template</h2>
+<pre><code># Decision: [one concrete choice]
+Status: Proposed — practice only
+
+## Context
+[Constraint or evidence forcing a choice.]
+
+## Decision
+[What we propose, and its boundary.]
+
+## Consequences
+[Benefit; real cost; follow-up obligation.]
+
+## Alternatives considered
+[Credible alternative and why it loses here.]</code></pre>
+<p>Context, decision, status, and consequences follow Nygard's basic format. A separate alternatives section is a useful extension for this exercise. Keep unknowns explicit; do not invent measurements or historical reasons. <a href="https://www.cognitect.com/blog/2011/11/15/documenting-architecture-decisions">Source: Nygard</a>.</p>
+
+<h2 id="status">Read the status before following the decision</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th scope="col">Status</th><th scope="col">Meaning in this lesson</th></tr></thead>
+  <tbody>
+    <tr><td>Proposed</td><td>Ready to discuss; not yet agreed.</td></tr>
+    <tr><td>Accepted</td><td>Agreed through the project's decision process.</td></tr>
+    <tr><td>Rejected</td><td>Considered and declined; preserve the reason.</td></tr>
+    <tr><td>Superseded</td><td>A later accepted record replaces this decision; follow its link.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Preserve accepted decision history when new evidence changes the choice. AWS describes this lifecycle and asks teams to define ownership. Follow the target project's actual conventions. <a href="https://docs.aws.amazon.com/prescriptive-guidance/latest/architectural-decision-records/adr-process.html">Source: AWS</a>.</p>
+<p>Different templates can support the same practice: recording one choice, its rationale, and its tradeoffs. <a href="https://adr.github.io/">Source: ADR GitHub organization</a>.</p>
+</main>
+<footer class="lesson-foot">
+  <p>Return to <a href="../lessons/0001-when-an-adr-earns-its-place.html">Lesson 1 · When an ADR earns its place</a>. Bring an uncertain case back to the agent for discussion.</p>
+</footer>
+</body>
+</html>
