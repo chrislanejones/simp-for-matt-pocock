@@ -4,23 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Simp for Matt Pocock: learning tracks on architecture decisions, web workers, and AI guardrails.">
-  <title>Simp for Matt Pocock · Learn</title>
+  <title>Simp for Matt Pocock · /teach</title>
   <style>
     :root { color-scheme: light dark; --paper: #fffef9; --ink: #1a1a19; --muted: #55534e; --rule: #ddd8ca; --link: #8a3324; }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--paper); color: var(--ink); font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; }
     main { width: min(100% - 32px, 860px); margin: 40px auto 80px; }
     .ascii { margin: 0 auto 40px; width: fit-content; font-size: min(1.65vw, 14px); line-height: 1.12; white-space: pre; }
-    nav { max-width: 680px; margin: auto; }
-    h1 { font-size: 20px; margin: 0 0 24px; }
-    ul { list-style: none; padding: 0; margin: 0; }
-    li { padding: 20px 0; border-top: 1px solid var(--rule); }
-    h2 { font-size: 16px; line-height: 1.5; margin: 0 0 10px; }
-    p { font-size: 14px; line-height: 1.8; margin: 0; }
+    nav { width: fit-content; max-width: 100%; margin: auto; }
+    .folder { margin: 0; font-family: inherit; font-size: min(2.2vw, 14px); line-height: 1.8; white-space: pre; }
+    h1 { font: inherit; display: inline; margin: 0; }
     a { color: var(--link); text-underline-offset: 4px; }
     a:hover { text-decoration-thickness: 2px; }
-    a:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
-    .reference { display: inline-block; margin-top: 8px; color: var(--muted); }
+    a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+    .reference { color: var(--muted); }
     @media (prefers-color-scheme: dark) {
       :root { --paper: #16161a; --ink: #e8e4db; --muted: #a9a49a; --rule: #33333a; --link: #e08a72; }
     }
@@ -90,25 +87,24 @@
            ................ :+****+++==-----::.         .-==      ..
         ....... ............ .=+**+++===---::.          .--.       :  ...
       .......    ............. :=++++===---:::.          :.        :.  . .:..</pre>
-    <nav aria-labelledby="learn-heading">
-      <h1 id="learn-heading">Learn</h1>
-      <ul>
-        <li>
-          <h2>ADR Best Use Cases</h2>
-          <p><a href="learn/adr-best-use-cases/lessons/0001-when-an-adr-earns-its-place.html">When an ADR earns its place</a><br>
-          <a class="reference" href="learn/adr-best-use-cases/reference/adr-or-pr.html">Reference: ADR or PR?</a></p>
-        </li>
-        <li>
-          <h2>Engine in a Worker</h2>
-          <p><a href="learn/engine-in-worker/lessons/0001-what-crosses-the-line.html">What crosses the line?</a><br>
-          <a class="reference" href="learn/engine-in-worker/reference/boundary-crossing.html">Reference: Crossing the worker boundary</a></p>
-        </li>
-        <li>
-          <h2>AI Guardrails</h2>
-          <p><a href="learn/ai-guardrails/lessons/0001-lethal-trifecta.html">The lethal trifecta</a><br>
-          <a class="reference" href="learn/ai-guardrails/reference/guardrail-mechanics.html">Reference: Guardrail mechanics</a></p>
-        </li>
-      </ul>
+    <nav aria-labelledby="teach-heading">
+      <div class="folder">   ______________
+ _/ <h1 id="teach-heading">/teach</h1>       \_______________________________________________
+/                                                                |
+|                                                                |
+|  ADR Best Use Cases                                            |
+|  <a href="learn/adr-best-use-cases/lessons/0001-when-an-adr-earns-its-place.html">When an ADR earns its place</a>                                   |
+|  <a class="reference" href="learn/adr-best-use-cases/reference/adr-or-pr.html">Reference: ADR or PR?</a>                                         |
+|                                                                |
+|  Engine in a Worker                                            |
+|  <a href="learn/engine-in-worker/lessons/0001-what-crosses-the-line.html">What crosses the line?</a>                                        |
+|  <a class="reference" href="learn/engine-in-worker/reference/boundary-crossing.html">Reference: Crossing the worker boundary</a>                       |
+|                                                                |
+|  AI Guardrails                                                 |
+|  <a href="learn/ai-guardrails/lessons/0001-lethal-trifecta.html">The lethal trifecta</a>                                           |
+|  <a class="reference" href="learn/ai-guardrails/reference/guardrail-mechanics.html">Reference: Guardrail mechanics</a>                                |
+|                                                                |
+|________________________________________________________________|</div>
     </nav>
   </main>
 </body>
