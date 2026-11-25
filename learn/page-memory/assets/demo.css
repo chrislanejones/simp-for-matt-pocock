@@ -1,0 +1,10 @@
+/* Live demo panel for page-memory-demo.js. */
+#memory-demo { border: 1px solid var(--rule); border-radius: 6px; background: var(--paper-sunk); padding: 1rem 1.1rem; margin: 1.25rem 0; font-family: var(--sans); }
+#memory-demo .row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: .5rem 0; }
+#memory-demo label { display: inline; margin: 0; font-size: .85rem; }
+#memory-demo select { padding: .45rem .6rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--paper); color: var(--ink); font: .9rem var(--sans); }
+#memory-demo .demo-pages button { min-width: 2.6rem; padding: .45rem .7rem; background: var(--paper); border-color: var(--rule); }
+#memory-demo .demo-pages button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+#memory-demo #demo-status { margin: .8rem 0 .2rem; padding: .55rem .7rem; border-left: 3px solid var(--accent); background: var(--paper); font: .9rem/1.45 var(--mono); }
+#memory-demo input[type="checkbox"] { width: 1.05rem; height: 1.05rem; accent-color: var(--accent); vertical-align: middle; }
+@media print { #memory-demo { display: none; } }

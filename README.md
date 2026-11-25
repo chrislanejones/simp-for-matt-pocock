@@ -66,7 +66,8 @@
 
 | Track | Start here |
 |---|---|
-| **ADR Best Use Cases** | [When an ADR earns its place](learn/adr-best-use-cases/lessons/0001-when-an-adr-earns-its-place.html) — quiz, draft exercise, and [printable reference](learn/adr-best-use-cases/reference/adr-or-pr.html) |
+| **Page Memory (BoxHarbor)** | [Pages that remember](learn/page-memory/lessons/0001-pages-that-remember.html) — live demo, quizzes, and [printable reference](learn/page-memory/reference/session-cache.html) |
+| ADR Best Use Cases | [When an ADR earns its place](learn/adr-best-use-cases/lessons/0001-when-an-adr-earns-its-place.html) — quiz, draft exercise, and [printable reference](learn/adr-best-use-cases/reference/adr-or-pr.html) |
 | Engine in a Worker | [What crosses the line?](learn/engine-in-worker/lessons/0001-what-crosses-the-line.html) |
 | AI Guardrails | [The lethal trifecta](learn/ai-guardrails/lessons/0001-lethal-trifecta.html) |
 

@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How BoxHarbor makes pages keep what they showed when you come back: a 42-line sessionStorage helper, a restore gate, and three ways to use it.">
+<title>Page Memory · Pages that remember</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<link rel="stylesheet" href="../assets/practice.css">
+<link rel="stylesheet" href="../assets/demo.css">
+<script src="../assets/quiz.js" defer></script>
+<script src="../assets/page-memory-demo.js" defer></script>
+</head>
+<body>
+<header class="masthead">
+  <p class="eyebrow"><span>Page Memory</span><span class="sep">·</span><span>Lesson 01</span><span class="sep">·</span><span>20 minutes</span></p>
+  <h1>Pages that remember</h1>
+  <p class="standfirst">How BoxHarbor keeps page 3 of Comedy on page 3 when you press Back, in one small file and four moves.</p>
+</header>
+<nav aria-label="Lesson sections"><a href="#problem">The problem</a> · <a href="#helper">The helper</a> · <a href="#demo">Try it live</a> · <a href="#moves">Four moves</a> · <a href="#predict">Predict it</a> · <a href="#patterns">Three patterns</a> · <a href="../reference/session-cache.html">Quick reference</a></nav>
+<main>
+<p class="lead">Your win today: explain the <strong>four moves</strong> behind BoxHarbor's page memory, and predict what a page shows after Back, a reload, or a new tab.</p>
+<div class="callout"><span class="label">Where this comes from</span><p>BoxHarbor commit <code>0675667</code>, “pages keep what they showed when you come back” (11-25-2026). One new file, <code>src/lib/session-cache.ts</code>, plus small changes to five pages. BoxHarbor's repo is private, so the code is quoted here.</p></div>
+
+<h2 id="problem">1. The problem: Back threw your work away</h2>
+<p>BoxHarbor is a Next.js app. Leaving a page unmounts its React components, and their state goes with them. So you'd set filters, page to 3, open a poster, press Back, and land on page 1 with everything reset. Worse, a release table that took up to <strong>20 seconds</strong> to fill started over from blank.</p>
+<div class="tablewrap"><table>
+<caption>The five pages the commit changed.</caption>
+<thead><tr><th scope="col">Page</th><th scope="col">What comes back</th><th scope="col">Max age</th></tr></thead>
+<tbody>
+<tr><td>Title page: release table</td><td>The rows, labeled “Checked 3 min ago · refreshing”</td><td class="num"><strong>1 hr</strong></td></tr>
+<tr><td>Title page: season picker</td><td>The season you were on, and episode lists already fetched</td><td class="num">6 hr</td></tr>
+<tr><td>Search</td><td>Last query, kind and results, labeled “from 4 min ago”</td><td class="num"><strong>1 hr</strong></td></tr>
+<tr><td>On the Horizon</td><td>Filters, page, view, studio, search box and results</td><td class="num">6 hr</td></tr>
+<tr><td>A second catalog page</td><td>Catalog, search and results</td><td class="num">6 hr</td></tr>
+</tbody></table></div>
+<p>Seeder counts go stale in minutes, so the two pages showing live release data get one hour. Filters and page numbers don't go stale, so they get six.</p>
+
+<h2 id="helper">2. The helper: 42 lines, no dependencies</h2>
+<pre><code><span class="k">const</span> PREFIX = <span class="c">"boxharbor:page:"</span>;
+
+<span class="k">export type</span> Saved&lt;T&gt; = { at: number; value: T };
+
+<span class="k">export function</span> readSession&lt;T&gt;(key: string, maxAgeMs: number): Saved&lt;T&gt; | null {
+  <span class="k">try</span> {
+    <span class="k">const</span> raw = sessionStorage.getItem(PREFIX + key);
+    <span class="k">if</span> (!raw) <span class="k">return</span> null;
+    <span class="k">const</span> saved = JSON.parse(raw) <span class="k">as</span> Saved&lt;T&gt;;
+    <span class="k">if</span> (typeof saved?.at !== <span class="c">"number"</span> || saved.value === undefined) <span class="k">return</span> null;
+    <span class="k">if</span> (Date.now() - saved.at &gt; maxAgeMs) <span class="k">return</span> null;
+    <span class="k">return</span> saved;
+  } <span class="k">catch</span> {
+    <span class="k">return</span> null;
+  }
+}
+
+<span class="k">export function</span> writeSession&lt;T&gt;(key: string, value: T): void {
+  <span class="k">try</span> {
+    sessionStorage.setItem(PREFIX + key, JSON.stringify({ at: Date.now(), value }));
+  } <span class="k">catch</span> {
+    <span class="c">// Storage full or blocked (private window): the next visit starts fresh.</span>
+  }
+}
+
+<span class="c">/** "just now", "4 min ago", "2 hr ago". */</span>
+<span class="k">export function</span> checkedAgo(at: number): string { <span class="c">/* … */</span> }</code></pre>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Piece</th><th scope="col">Why it's there</th></tr></thead>
+<tbody>
+<tr><td><code>PREFIX</code></td><td>Keeps BoxHarbor's keys apart from anything else on the same origin.</td></tr>
+<tr><td><code>{ at, value }</code> envelope</td><td>Every save carries its own timestamp, so the reader can judge age and label it.</td></tr>
+<tr><td><code>maxAgeMs</code> on read</td><td>The <em>caller</em> decides what counts as stale. Nothing expires on a timer.</td></tr>
+<tr><td>Shape check</td><td>Ignores a value that isn't an envelope, rather than restoring junk.</td></tr>
+<tr><td><code>try</code> / <code>catch</code> everywhere</td><td>Blocked storage throws <code>SecurityError</code>; a full store throws <code>QuotaExceededError</code>. Either way the answer is “not saved.”</td></tr>
+</tbody></table></div>
+<p>Both errors are real: <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage">MDN lists <code>SecurityError</code></a> for blocked storage, and <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage/setItem">MDN lists <code>QuotaExceededError</code></a> for <code>setItem</code>. Losing a cached page costs nothing, which is why swallowing them is the right call here. It would be the wrong call for user data.</p>
+
+<h2 id="demo">3. Try it live</h2>
+<p>This panel runs a vanilla JavaScript copy of the same helper, in this tab's own <code>sessionStorage</code>.</p>
+<div id="memory-demo">
+  <div class="row"><label for="demo-genre">Genre</label>
+    <select id="demo-genre"><option>All genres</option><option>Comedy</option><option>Drama</option><option>Horror</option></select></div>
+  <div class="row demo-pages" role="group" aria-label="Page"><span class="small">Page</span>
+    <button type="button" data-page="1" aria-pressed="true">1</button><button type="button" data-page="2" aria-pressed="false">2</button><button type="button" data-page="3" aria-pressed="false">3</button><button type="button" data-page="4" aria-pressed="false">4</button></div>
+  <div class="row"><input type="checkbox" id="demo-gate" checked> <label for="demo-gate">Restore gate on</label></div>
+  <p id="demo-status">Loading…</p>
+  <div class="actions"><button type="button" id="demo-reload">Reload this page</button><button type="button" id="demo-clear">Clear saved</button></div>
+</div>
+<noscript><p class="callout">JavaScript is off, so the demo can't run. The steps below still describe what it shows.</p></noscript>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Do this</th><th scope="col">Expect</th></tr></thead>
+<tbody>
+<tr><td>Pick Comedy, page 3, then reload</td><td>Restored, with its age</td></tr>
+<tr><td>Copy this URL into a <strong>new tab</strong></td><td>Starts fresh: storage is per tab</td></tr>
+<tr><td>Untick the gate, pick Drama page 4, reload</td><td>Your choice is gone: defaults were saved first</td></tr>
+</tbody></table></div>
+
+<h2 id="moves">4. The four moves</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">#</th><th scope="col">Move</th><th scope="col">What goes wrong without it</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td><strong>Store per tab</strong> in <code>sessionStorage</code></td><td><code>localStorage</code> would leak one tab's filters into every tab and every visit.</td></tr>
+<tr><td class="num">2</td><td><strong>Stamp, then expire on read</strong></td><td>Hour-old seeder counts shown as if live.</td></tr>
+<tr><td class="num">3</td><td><strong>Read after mount</strong></td><td>The server render has no storage, so the HTML and first client render disagree.</td></tr>
+<tr><td class="num">4</td><td><strong>Gate the save</strong> until the restore runs</td><td>The first render's defaults overwrite what was saved.</td></tr>
+</tbody></table></div>
+
+<h3>Move 1: why sessionStorage</h3>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage">MDN</a>: a page session “survives over page reloads and restores,” “opening a page in a new tab or window creates a new session,” and closing the tab clears it. That matches the goal exactly: pressing Back is the same tab; a new tab is a fresh look.</p>
+
+<h3>Move 3: read after mount</h3>
+<p>Next.js renders client components on the server first. Reading browser storage during render is a listed cause in <a href="https://nextjs.org/docs/messages/react-hydration-error">Next.js's hydration error page</a>, which recommends <code>useEffect</code> instead. So every page restores inside an effect:</p>
+<pre><code><span class="k">useEffect</span>(() =&gt; {
+  <span class="k">const</span> t = setTimeout(() =&gt; {
+    <span class="k">const</span> saved = readSession&lt;Saved&gt;(savedKey, 6 * HOUR)?.value;
+    <span class="k">if</span> (saved) { setSeason(saved.season); setCache(saved.cache); }
+    setRestoredKey(savedKey);   <span class="c">// move 4: now saving may start</span>
+  }, 0);
+  <span class="k">return</span> () =&gt; clearTimeout(t);
+}, [savedKey]);
+
+<span class="k">useEffect</span>(() =&gt; {
+  <span class="k">if</span> (restoredKey === savedKey) writeSession(savedKey, { season, cache });
+}, [restoredKey, savedKey, season, cache]);</code></pre>
+<p><strong>The <code>setTimeout(0)</code>:</strong> BoxHarbor runs <code>eslint-plugin-react-hooks</code> 7, whose <a href="https://react.dev/reference/eslint-plugin-react-hooks/lints/set-state-in-effect"><code>set-state-in-effect</code></a> rule flags calling <code>setState</code> synchronously in an effect body. Deferring one tick moves the calls into a callback. The cost is one extra frame showing the defaults before the restore lands.</p>
+
+<h3>Move 4: why the gate is a key, not a boolean</h3>
+<p>Effects run in order on mount. Without the gate, the save effect fires on the very first render, writing the defaults over the saved value before the deferred restore reads it. That's the bug the demo replays.</p>
+<p>On the Horizon goes one step further. Its key includes the path and source (<code>horizon:${pathname}:${source}</code>), so the key can change while the component stays mounted, say from Movies to TV. A plain <code>restored = true</code> flag would then let the Movies state save under the TV key before TV's restore ran. Storing <em>which</em> key was restored closes that gap.</p>
+
+<h2 id="predict">5. Predict what the page shows</h2>
+<p>Write a short reason, then choose. Use the max ages from section 1.</p>
+<noscript><p class="callout">JavaScript is off. Answer on paper; enable JavaScript for feedback.</p></noscript>
+<div class="quiz" data-options="Shows saved state|Starts out fresh">
+<ol>
+<li class="q" data-answer="Shows saved state" data-why="Same tab, and 10 minutes is inside the 1-hour limit. The table appears at once, labeled “Checked 10 min ago · refreshing,” while a fresh search runs behind it.">
+<div class="stem"><p>You open a title page, wait for its release table, go elsewhere, then press Back in the same tab 10 minutes later.</p></div>
+<label for="p-1">What decides it?<textarea class="reason" id="p-1" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Starts out fresh" data-why="A new tab gets its own page session, so its sessionStorage is empty. This is deliberate: “a new tab or another device starts fresh.”">
+<div class="stem"><p>You copy the On the Horizon URL from that tab into a brand-new tab.</p></div>
+<label for="p-2">What decides it?<textarea class="reason" id="p-2" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Starts out fresh" data-why="The entry still sits in storage, but readSession is called with a 1-hour limit and returns null. Expiry happens on read, not on a timer.">
+<div class="stem"><p>You reload the search page 2 hours after your last search, same tab.</p></div>
+<label for="p-3">What decides it?<textarea class="reason" id="p-3" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Shows saved state" data-why="Filters and page numbers use a 6-hour limit. Two hours later, Comedy page 3 is still there.">
+<div class="stem"><p>You reload On the Horizon 2 hours after leaving it on Comedy, page 3, same tab.</p></div>
+<label for="p-4">What decides it?<textarea class="reason" id="p-4" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Starts out fresh" data-why="getItem throws a SecurityError, the catch returns null, and the page renders its defaults. No crash, no error message: losing a cached page costs nothing.">
+<div class="stem"><p>The browser is set to block this site from storing data, and you press Back to a page you just left.</p></div>
+<label for="p-5">What decides it?<textarea class="reason" id="p-5" rows="2"></textarea></label>
+</li>
+</ol>
+<div class="score"></div>
+</div>
+
+<h3>Why is the code shaped this way?</h3>
+<div class="quiz" data-options="Server has no storage|Save beats the restore|Linter flags sync setState">
+<ol>
+<li class="q" data-answer="Server has no storage" data-why="The first render happens on the server, where sessionStorage doesn't exist. Reading it in a useState initializer either throws there or makes the client's first render disagree with the server HTML.">
+<div class="stem"><p>Why not read <code>sessionStorage</code> inside the <code>useState</code> initializer, so the first render already has the saved value?</p></div>
+<label for="w-1">Your reason<textarea class="reason" id="w-1" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Save beats the restore" data-why="The save effect runs on mount too. Without the restoredKey check it would write the defaults before the deferred restore reads, wiping the saved state.">
+<div class="stem"><p>Why does the save effect check <code>restoredKey === savedKey</code> before calling <code>writeSession</code>?</p></div>
+<label for="w-2">Your reason<textarea class="reason" id="w-2" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Linter flags sync setState" data-why="React's set-state-in-effect rule flags setState called directly in an effect body. Wrapping the restore in setTimeout(0) moves those calls into a callback, at the cost of one frame of defaults.">
+<div class="stem"><p>Why is the restore wrapped in <code>setTimeout(() =&gt; …, 0)</code> instead of running straight in the effect?</p></div>
+<label for="w-3">Your reason<textarea class="reason" id="w-3" rows="2"></textarea></label>
+</li>
+</ol>
+<div class="score"></div>
+</div>
+
+<h2 id="patterns">6. Three ways to use one helper</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Pattern</th><th scope="col">Used on</th><th scope="col">On return</th><th scope="col">Saves when</th></tr></thead>
+<tbody>
+<tr><td><strong>Snapshot the UI state</strong></td><td>On the Horizon, seasons, catalog</td><td>Puts every control back</td><td>Any watched state changes</td></tr>
+<tr><td><strong>Show stale, then refresh</strong></td><td>Release table</td><td>Shows saved rows, searches again behind them</td><td>A fresh result arrives</td></tr>
+<tr><td><strong>Restore, refresh on demand</strong></td><td>Search</td><td>Shows saved results; you press Search to ask again</td><td>A fresh result arrives</td></tr>
+</tbody></table></div>
+<p>The release table is the <a href="https://web.dev/articles/stale-while-revalidate">stale-while-revalidate</a> idea, done by hand: “loading cached content right away” while a refresh runs “in a way that doesn't delay the use of the cached response.” If that refresh fails, the saved table stays and its label becomes “couldn't refresh.” A saved table beats an error message.</p>
+<p>Search doesn't auto-refresh because re-running it asks every indexer again. The page shows the age and leaves the call to you. A link that asks for a <em>different</em> query skips the restore and searches.</p>
+
+<h3>Transfer: pick the pattern</h3>
+<div class="quiz" data-options="Snapshot the UI state|Show stale, then refresh|Restore, refresh on demand">
+<ol>
+<li class="q" data-answer="Snapshot the UI state" data-why="These are choices you made, not data that goes stale. Save every change and put them back. This is the season picker's pattern in another app.">
+<div class="stem"><p>Hypothetical: Image Horse's export dialog should remember the format and quality you picked, per tab.</p></div>
+<label for="t-1">Your reason<textarea class="reason" id="t-1" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Show stale, then refresh" data-why="It's slow to fetch, goes stale quickly, and it's cheap to refresh on every visit. Show the old copy with its age, refresh behind it, and keep the old copy if the refresh fails.">
+<div class="stem"><p>A dashboard panel takes 8 seconds to load prices that change every few minutes. Refreshing it costs nothing.</p></div>
+<label for="t-2">Your reason<textarea class="reason" id="t-2" rows="2"></textarea></label>
+</li>
+<li class="q" data-answer="Restore, refresh on demand" data-why="Each run has a real cost, so don't spend it automatically on every Back. Show what you have, say how old it is, and let the user ask again.">
+<div class="stem"><p>A report page runs a query that's billed per run. Users often bounce between it and a detail page.</p></div>
+<label for="t-3">Your reason<textarea class="reason" id="t-3" rows="2"></textarea></label>
+</li>
+</ol>
+<div class="score"></div>
+</div>
+
+<h2 id="watch">7. What to keep an eye on</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Limit</th><th scope="col">Effect today</th></tr></thead>
+<tbody>
+<tr><td><strong>5 MiB</strong> of session storage per origin (<a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">MDN</a>)</td><td>Big result lists could hit it. Writes then fail quietly and the page starts fresh.</td></tr>
+<tr><td>Expired entries are never deleted</td><td>They sit in storage until the tab closes. Harmless, but they count toward the 5 MiB.</td></tr>
+<tr><td>One <code>search</code> slot</td><td>Only the last search is kept, by design.</td></tr>
+<tr><td><code>JSON.stringify</code> round trip</td><td>Only plain data survives. A <code>Date</code> comes back as a string; a <code>Map</code> comes back as an empty plain object.</td></tr>
+</tbody></table></div>
+
+<p>Tomorrow, without this page: name the four moves, and say which one the demo's gate switch breaks.</p>
+<div class="primary-source"><span class="label">Read next · primary source</span><a class="title" href="https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage">Window: sessionStorage — MDN Web Docs</a><p>Short, and it settles every “does it survive?” question: reloads, restores, new tabs, closed tabs, and the errors it throws.</p></div>
+</main>
+<footer class="lesson-foot">
+<p><a href="../reference/session-cache.html">Printable session-cache reference</a> · <a href="../MISSION.md">Mission</a> · <a href="../RESOURCES.md">Sources</a></p>
+<p>Related track: <a href="../../engine-in-worker/lessons/0001-what-crosses-the-line.html">What crosses the worker boundary?</a> (another place where state has to survive a line it can't cross for free)</p>
+<div class="ask"><strong>Bring questions back to chat.</strong> Ask about anything unclear, like why the restore runs in an effect, or how you'd add memory to another BoxHarbor page. We'll walk through it together.</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference · Page memory with sessionStorage</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<link rel="stylesheet" href="../assets/practice.css">
+</head>
+<body class="reference">
+<header class="masthead">
+  <p class="eyebrow"><span>Page Memory</span><span class="sep">·</span><span>Reference</span></p>
+  <h1>Page memory with sessionStorage</h1>
+  <p class="standfirst">BoxHarbor's <code>src/lib/session-cache.ts</code> and how pages use it.</p>
+</header>
+<main>
+<h2 id="moves">The four moves</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">#</th><th scope="col">Move</th><th scope="col">Prevents</th></tr></thead>
+<tbody>
+<tr><td class="num">1</td><td>Store per tab (<code>sessionStorage</code>)</td><td>One tab's state leaking into others</td></tr>
+<tr><td class="num">2</td><td>Stamp <code>{ at, value }</code>, expire on read</td><td>Stale data shown as live</td></tr>
+<tr><td class="num">3</td><td>Read after mount, in an effect</td><td>Hydration mismatch</td></tr>
+<tr><td class="num">4</td><td>Gate the save on <code>restoredKey === savedKey</code></td><td>Defaults overwriting the save</td></tr>
+</tbody></table></div>
+
+<h2 id="api">The API</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Export</th><th scope="col">Does</th><th scope="col">On failure</th></tr></thead>
+<tbody>
+<tr><td><code>readSession&lt;T&gt;(key, maxAgeMs)</code></td><td>Returns <code>{ at, value }</code> or <code>null</code></td><td><code>null</code></td></tr>
+<tr><td><code>writeSession&lt;T&gt;(key, value)</code></td><td>Saves value stamped with <code>Date.now()</code></td><td>Silently not saved</td></tr>
+<tr><td><code>checkedAgo(at)</code></td><td>“just now”, “4 min ago”, “2 hr ago”</td><td>n/a</td></tr>
+<tr><td><code>MINUTE</code>, <code>HOUR</code></td><td>Milliseconds</td><td>n/a</td></tr>
+</tbody></table></div>
+<p class="small">All keys are prefixed <code>boxharbor:page:</code>.</p>
+
+<h2 id="recipe">The recipe for a new page</h2>
+<pre><code><span class="k">const</span> savedKey = <span class="c">`mypage:${id}`</span>;          <span class="c">// everything that identifies the data</span>
+<span class="k">const</span> [restoredKey, setRestoredKey] = useState&lt;string | null&gt;(null);
+
+<span class="k">useEffect</span>(() =&gt; {                           <span class="c">// restore</span>
+  <span class="k">const</span> t = setTimeout(() =&gt; {
+    <span class="k">const</span> saved = readSession&lt;Saved&gt;(savedKey, 6 * HOUR)?.value;
+    <span class="k">if</span> (saved) { <span class="c">/* set each piece of state */</span> }
+    setRestoredKey(savedKey);
+  }, 0);
+  <span class="k">return</span> () =&gt; clearTimeout(t);
+}, [savedKey]);
+
+<span class="k">useEffect</span>(() =&gt; {                           <span class="c">// save, gated</span>
+  <span class="k">if</span> (restoredKey === savedKey) writeSession(savedKey, { <span class="c">/* state */</span> });
+}, [restoredKey, savedKey <span class="c">/* , each piece of state */</span>]);</code></pre>
+
+<h2 id="patterns">Pick a pattern</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Pattern</th><th scope="col">Use when</th><th scope="col">BoxHarbor example</th><th scope="col">Max age</th></tr></thead>
+<tbody>
+<tr><td>Snapshot the UI state</td><td>User choices: filters, page, view</td><td>On the Horizon, season picker</td><td class="num">6 hr</td></tr>
+<tr><td>Show stale, then refresh</td><td>Slow data, cheap to refresh</td><td>Title page release table</td><td class="num"><strong>1 hr</strong></td></tr>
+<tr><td>Restore, refresh on demand</td><td>Each refresh has a real cost</td><td>Search page</td><td class="num"><strong>1 hr</strong></td></tr>
+</tbody></table></div>
+
+<div class="callout"><span class="label">Label what's old</span><p>Restored data always says its age: “Checked 3 min ago · refreshing”, “from 4 min ago”, or “couldn't refresh” when the refresh fails and the saved copy stays.</p></div>
+
+<h2 id="survives">Does it survive?</h2>
+<div class="tablewrap"><table>
+<thead><tr><th scope="col">Event</th><th scope="col">Saved state</th></tr></thead>
+<tbody>
+<tr><td>Back / forward, same tab</td><td class="verdict">Kept</td></tr>
+<tr><td>Reload, same tab</td><td class="verdict">Kept</td></tr>
+<tr><td>New tab or window</td><td class="verdict">Fresh</td></tr>
+<tr><td>Tab closed</td><td class="verdict">Cleared</td></tr>
+<tr><td>Older than the caller's max age</td><td class="verdict">Ignored (still stored)</td></tr>
+<tr><td>Storage blocked or full</td><td class="verdict">Fresh, no error</td></tr>
+</tbody></table></div>
+<p class="small">Lifetime rules: <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage">MDN sessionStorage</a>. Size limit, 5 MiB per origin: <a href="https://developer.mozilla.org/en-US/docs/Web/API/Storage_API/Storage_quotas_and_eviction_criteria">MDN storage quotas</a>. Lesson: <a href="../lessons/0001-pages-that-remember.html">Pages that remember</a>.</p>
+</main>
+</body>
+</html>
