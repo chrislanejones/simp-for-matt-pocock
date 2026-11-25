@@ -18,11 +18,18 @@
     a:hover { text-decoration-thickness: 2px; }
     a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
     .reference { color: var(--muted); }
+    .search-open { font: inherit; color: var(--link); background: none; border: 0; padding: 0; margin: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; white-space: pre; }
+    .search-open:hover { text-decoration-thickness: 2px; }
+    .search-open:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
     @media (prefers-color-scheme: dark) {
       :root { --paper: #16161a; --ink: #e8e4db; --muted: #a9a49a; --rule: #33333a; --link: #e08a72; }
     }
     @media (max-width: 480px) { main { margin-top: 24px; } .ascii { margin-bottom: 32px; } }
   </style>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <script src="assets/search.js" defer></script>
 </head>
 <body>
   <main>
@@ -91,6 +98,8 @@
       <div class="folder">   ______________
  _/ <h1 id="teach-heading">/teach</h1>       \_______________________________________________
 /                                                                |
+|                                                                |
+|  <button type="button" class="search-open" data-search-open aria-label="Search the site (Ctrl+K)">[ ctrl+k ] search</button>                                             |
 |                                                                |
 |  Page Memory (BoxHarbor)                                       |
 |  <a href="learn/page-memory/lessons/0001-pages-that-remember.html">Pages that remember</a>                                           |

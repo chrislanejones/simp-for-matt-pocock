@@ -1,0 +1,33 @@
+/* ASCII Ctrl+K palette for assets/search.js. Own colors, so it looks the
+ * same on the landing page and in every track. */
+.sk, .sk-trigger {
+  --sk-paper: #fffef9; --sk-ink: #1a1a19; --sk-muted: #6b6861; --sk-accent: #8a3324; --sk-hi: #f0e4e0;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  .sk, .sk-trigger { --sk-paper: #16161a; --sk-ink: #e8e4db; --sk-muted: #a9a49a; --sk-accent: #e08a72; --sk-hi: #2e2522; }
+}
+.sk { margin: 12vh auto auto; padding: 0; border: 0; background: transparent; color: var(--sk-ink); max-width: calc(100vw - 16px); overflow: visible; }
+.sk::backdrop { background: rgba(10, 10, 12, .55); }
+.sk-box { background: var(--sk-paper); color: var(--sk-ink); font-size: 14px; line-height: 1.55; box-shadow: 0 18px 48px rgba(0, 0, 0, .35); max-width: calc(100vw - 16px); overflow: hidden; }
+.sk-line { display: block; white-space: pre; overflow: hidden; }
+.sk-art { color: var(--sk-muted); }
+.sk-line:first-child .sk-art { color: var(--sk-accent); }
+.sk-rule, .sk-rule2, .sk-bottom { color: var(--sk-muted); }
+.sk-prompt { display: flex; align-items: baseline; }
+.sk-prompt .sk-art:first-child { color: var(--sk-accent); }
+.sk-input { flex: none; min-width: 0; padding: 0; margin: 0; border: 0; outline: 0; background: transparent; color: var(--sk-ink); font: inherit; caret-color: var(--sk-accent); }
+.sk-input::placeholder { color: var(--sk-muted); opacity: .8; }
+.sk-list { max-height: 60vh; overflow-y: auto; }
+.sk-opt { color: var(--sk-ink); text-decoration: none; cursor: pointer; }
+.sk-opt[aria-selected="true"] { background: var(--sk-hi); }
+.sk-opt[aria-selected="true"] .sk-art:nth-child(2), .sk-opt[aria-selected="true"] .sk-title { color: var(--sk-accent); font-weight: 700; }
+.sk-kind { color: var(--sk-muted); }
+.sk-status { color: var(--sk-muted); }
+.sk-probe { position: absolute; visibility: hidden; white-space: pre; font-size: 14px; }
+.sk-prompt:focus-within .sk-art:first-child { color: var(--sk-accent); }
+.sk-trigger { position: fixed; top: 10px; right: 12px; z-index: 20; padding: 4px 8px; border: 1px dashed var(--sk-muted); border-radius: 0; background: var(--sk-paper); color: var(--sk-muted); font-size: 12px; font-weight: 400; cursor: pointer; }
+.sk-trigger:hover { color: var(--sk-accent); border-color: var(--sk-accent); }
+.sk-trigger:focus-visible { outline: 2px solid var(--sk-accent); outline-offset: 2px; }
+@media (max-width: 480px) { .sk-box { font-size: 12px; } .sk-probe { font-size: 12px; } .sk { margin-top: 6vh; } }
+@media print { .sk-trigger, .sk { display: none !important; } }
