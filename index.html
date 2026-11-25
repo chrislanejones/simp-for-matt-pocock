@@ -13,7 +13,9 @@
     .ascii { margin: 0 auto 40px; width: fit-content; font-size: min(1.65vw, 14px); line-height: 1.12; white-space: pre; }
     nav { width: fit-content; max-width: 100%; margin: auto; }
     .folder { margin: 0; font-family: inherit; font-size: min(2.2vw, 14px); line-height: 1.8; white-space: pre; }
-    h1 { font: inherit; display: inline; margin: 0; }
+    h1, h2 { font: inherit; display: inline; margin: 0; }
+    .side { display: flex; flex-direction: column; align-items: center; gap: 32px; }
+    .info-wrap { width: fit-content; max-width: 100%; }
     a { color: var(--link); text-underline-offset: 4px; }
     a:hover { text-decoration-thickness: 2px; }
     a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -23,6 +25,15 @@
     .search-open:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
     @media (prefers-color-scheme: dark) {
       :root { --paper: #16161a; --ink: #e8e4db; --muted: #a9a49a; --rule: #33333a; --link: #e08a72; }
+    }
+    /* Large screens: title and portrait on the left, folders on the right. */
+    @media (min-width: 1280px) {
+      main { width: min(100% - 64px, 2200px); min-height: 100vh; margin: 0 auto; padding: 32px 0;
+        display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; column-gap: clamp(24px, 3.5vw, 120px); }
+      .ascii { margin: 0; font-size: min(0.92vw, calc((100vh - 64px) / 69.5), 20px); }
+      .side { align-items: flex-start; gap: 28px; }
+      nav { margin: 0; }
+      .folder { font-size: max(11px, min(1.02vw, calc((100vh - 72px) / 60.5), 18px)); line-height: 1.6; }
     }
     @media (max-width: 480px) { main { margin-top: 24px; } .ascii { margin-bottom: 32px; } }
   </style>
@@ -94,6 +105,7 @@
            ................ :+****+++==-----::.         .-==      ..
         ....... ............ .=+**+++===---::.          .--.       :  ...
       .......    ............. :=++++===---:::.          :.        :.  . .:..</pre>
+    <div class="side">
     <nav aria-labelledby="teach-heading">
       <div class="folder">   ______________
  _/ <h1 id="teach-heading">/teach</h1>       \_______________________________________________
@@ -119,6 +131,22 @@
 |                                                                |
 |________________________________________________________________|</div>
     </nav>
+    <aside class="info-wrap" aria-labelledby="about-heading">
+      <div class="folder info">   ______________
+ _/ <h2 id="about-heading">about</h2>        \_______________________________________________
+/                                                                |
+|                                                                |
+|  Short lessons on things I'm learning. Each one has a quiz     |
+|  or a demo, plus a printable reference sheet.                  |
+|                                                                |
+|  tracks ........ 4        updated ..... 11-25-2026             |
+|  lessons ....... 4        search ...... ctrl+k or /            |
+|  references .... 4        built ....... plain HTML             |
+|                                                                |
+|  source  <a href="https://github.com/chrislanejones/simp-for-matt-pocock">github.com/chrislanejones/simp-for-matt-pocock</a>        |
+|________________________________________________________________|</div>
+    </aside>
+    </div>
   </main>
 </body>
 </html>
