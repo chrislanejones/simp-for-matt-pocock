@@ -84,7 +84,11 @@
     dialog.appendChild(probe);
     var ch = probe.getBoundingClientRect().width / 10 || 8.4;
     probe.remove();
-    var avail = Math.min(window.innerWidth - 24, 720);
+    // Leave room for the box's own padding (see .sk-box in search.css).
+    var box = dialog.querySelector(".sk-box");
+    var cs = box ? getComputedStyle(box) : null;
+    var padX = cs ? parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) : 0;
+    var avail = Math.min(window.innerWidth - 24 - padX, 720);
     return Math.max(34, Math.min(72, Math.floor(avail / ch)));
   }
 
